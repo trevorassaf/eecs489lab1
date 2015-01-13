@@ -270,8 +270,6 @@ netimg_recvimg(void)
   // If all goes well, we should receive img_size bytes of data from the server.
   if (img_offset <  img_size) { 
 
-    /* YOUR CODE HERE */
-
     /* Task 1: YOUR CODE HERE
      * Receive as much of the remaining image as available from the network
      * put the data in the buffer pointed to by the global variable 
@@ -284,8 +282,15 @@ netimg_recvimg(void)
      * Update img_offset by the amount of data received, in preparation for the
      * next iteration, the next time this function is called.
      */
-      
-        
+    int num_bytes_read = recv(sd, image + img_offset, img_size - img_offset, 0);
+    
+    // Fail due to network error
+    if (num_bytes_read == -1) {
+        fprintf(stderr, "Network error occurred in recvimg");
+        exit(1);
+    }
+    
+    img_offset += num_bytes_read;
 
     /* give the updated image to OpenGL for texturing */
     glTexImage2D(GL_TEXTURE_2D, 0, (GLint) imsg.im_format,
