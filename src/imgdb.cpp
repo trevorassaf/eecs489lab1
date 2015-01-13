@@ -127,8 +127,9 @@ imgdb_sockinit()
    * Fill out the rest of this function.
   */
   /* create a TCP socket, store the socket descriptor in global variable "sd" */
-  /* YOUR CODE HERE */
-  
+ 
+  sd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+
   memset((char *) &self, 0, sizeof(struct sockaddr_in));
   self.sin_family = AF_INET;
   self.sin_addr.s_addr = INADDR_ANY;
