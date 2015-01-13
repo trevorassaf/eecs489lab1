@@ -206,23 +206,21 @@ netimg_recvimsg()
     char buff[buff_size];
 
     // Init imsg_t writers
-    char * imsg_ptr = (char *) &imsg;
-    int imsg_remaining_bytes = sizeof(imsg_t);
+    imsg_t * imsg_ptr = (char *) &imsg;
+    size_t imsg_remaining_bytes = sizeof(imsg_t);
 
     int num_read_bytes;
     do {
         // Read bytes from wire
-        num_read_bytes = recv(sd, buff, buff_size, 0);
+        // TODO is this susceptible to buffer overflow?
+        num_read_bytes = recv(sd, &buff, buff_size, 0);
         imsg_remaining_bytes -= num_read_bytes;
-        
-        // Check buffer overflow 
-        if (imsg_remaining_bytes < 0) {
+
+        // Check overflow
+        if (imsg_ptr > imsg_end) {
             fprintf(stderr, "Server sent too many bytes for imsg");
             return NETIMG_ESIZE;
         }
-
-        // Accumulate buffered data
-        memcpy(imsg_ptr, buff, num_read_bytes);
     } while (num_read_bytes);
 
     // Validate packet version number
@@ -284,8 +282,7 @@ netimg_recvimg(void)
      * Update img_offset by the amount of data received, in preparation for the
      * next iteration, the next time this function is called.
      */
-      
-        
+    /* YOUR CODE HERE */
 
     /* give the updated image to OpenGL for texturing */
     glTexImage2D(GL_TEXTURE_2D, 0, (GLint) imsg.im_format,
