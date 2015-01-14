@@ -132,6 +132,12 @@ netimg_sockinit(char *sname, u_short port)
   */
     sd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
+    // Fail due to bad local socket
+    if (sd == -1) {
+      fprintf(stderr, "Client couldn't create local socket.");
+      exit(1);
+    }
+
   /* 
    * obtain the server's IPv4 address from sname and initialize the
    *  socket address with server's address and port number . 
@@ -148,12 +154,12 @@ netimg_sockinit(char *sname, u_short port)
 
   /* connect to server */
     int result = connect(sd, (struct sockaddr *) &server, size_server);
+    
+    // Fail due to bad connection
     if (result == -1) {
         fprintf(stderr, "Client couldn't connect to server socket.");
         exit(1);
     }
-
-  return;
 }
 
 /*
@@ -201,30 +207,23 @@ netimg_recvimsg()
    * If message is of the wrong size, return NETIMG_ESIZE.
    * Convert the integer fields of imsg back to host byte order.
   */
-    // Init buffer
+
+    // Read imsg packet
     size_t buff_size = sizeof(imsg_t);
-    char buff[buff_size];
+    int bytes_read = recv(sd, (char *) &imsg, buff_size, 0);
 
-    // Init imsg_t writers
-    char * imsg_ptr = (char *) &imsg;
-    int imsg_remaining_bytes = sizeof(imsg_t);
+    // Fail due to bad imsg read
+    if (bytes_read == -1) {
+      fprintf(stderr, "Failed to read imsg");
+      exit(1);
+    }
 
-    int num_read_bytes;
-    do {
-        // Read bytes from wire
-        num_read_bytes = recv(sd, buff, buff_size, 0);
-        imsg_remaining_bytes -= num_read_bytes;
-        
-        // Check buffer overflow 
-        if (imsg_remaining_bytes < 0) {
-            fprintf(stderr, "Server sent too many bytes for imsg");
-            return NETIMG_ESIZE;
-        }
-
-        // Accumulate buffered data
-        memcpy(imsg_ptr, buff, num_read_bytes);
-    } while (num_read_bytes);
-
+    // Validate packet size
+    if ((size_t) bytes_read != buff_size) {
+      fprintf(stderr, "Too many bytes sent by server during imsg read");
+      return NETIMG_ESIZE;
+    }
+    
     // Validate packet version number
     if (imsg.im_vers != NETIMG_VERS) {
         fprintf(stderr, "Bad version number: %c\n", imsg.im_vers);
