@@ -136,20 +136,29 @@ imgdb_sockinit()
   self.sin_port = 0;
 
   /* bind address to socket */
-  /* YOUR CODE HERE */
+  if (bind(sd, (struct sockaddr *) &self, sizeof(struct sockaddr_in)) < 0) {
+    fprintf(stderr, "Failed to bind socket.");
+    exit(1);
+  }
 
   /* listen on socket */
-  /* YOUR CODE HERE */
+  if (listen(sd, NETIMG_QLEN) < 0) {
+    fprintf(stderr, "Failed to listen on socket.");
+    exit(1);
+  }
 
   /*
    * Obtain the ephemeral port assigned by the OS kernel to this
    * socket and store it in the local variable "self".
    */
-  /* YOUR CODE HERE */
+  // TODO didn't we already to this with bind()?
 
   /* Find out the FQDN of the current host and store it in the local
      variable "sname".  gethostname() is usually sufficient. */
-  /* YOUR CODE HERE */
+  if (gethostname(sname, NETIMG_MAXFNAME + 1) < 0) {
+    fprintf(stderr, "Failed to get hostname.");
+    exit(1);
+  }
 
   /* inform user which port this peer is listening on */
   fprintf(stderr, "imgdb address is %s:%d\n", sname, ntohs(self.sin_port));
@@ -177,12 +186,13 @@ imgdb_accept(int sd)
    * Accept the new connection.
    * Use the variable "td" to hold the new connected socket.
   */
-  /* YOUR CODE HERE */
+  int len = sizeof(struct sockaddr_in);
+  td = accept(sd, (struct sockaddr *) &client, (socklen_t *) &len);
 
   /* make the socket wait for NETIMG_LINGER time unit to make sure
      that all data sent has been delivered when closing the socket */
-  /* YOUR CODE HERE */
   
+
   /* inform user of connection */
   cp = gethostbyaddr((char *) &client.sin_addr, sizeof(struct in_addr), AF_INET);
   fprintf(stderr, "Connected from client %s:%d\n",
