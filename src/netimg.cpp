@@ -220,13 +220,13 @@ netimg_recvimsg()
 
     // Validate packet size
     if ((size_t) bytes_read != buff_size) {
-      fprintf(stderr, "Too many bytes sent by server during imsg read");
+      fprintf(stderr, "Wrong number of bytes sent by server during imsg read: expected: %i, received: %i", (int) buff_size, (int) bytes_read);
       return NETIMG_ESIZE;
     }
     
     // Validate packet version number
     if (imsg.im_vers != NETIMG_VERS) {
-        fprintf(stderr, "Bad version number: %c\n", imsg.im_vers);
+        fprintf(stderr, "Bad version number: %c\n", (char) imsg.im_vers);
         return NETIMG_EVERS;
     }
 

@@ -126,9 +126,15 @@ imgdb_sockinit()
   /* Task 2: YOUR CODE HERE
    * Fill out the rest of this function.
   */
+  
   /* create a TCP socket, store the socket descriptor in global variable "sd" */
- 
   sd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+  // Fail because can't open local socket
+  if (sd == -1) {
+    fprintf(stderr, "Failed to initialize local socket.");
+    exit(1);
+  }
 
   memset((char *) &self, 0, sizeof(struct sockaddr_in));
   self.sin_family = AF_INET;
@@ -151,7 +157,14 @@ imgdb_sockinit()
    * Obtain the ephemeral port assigned by the OS kernel to this
    * socket and store it in the local variable "self".
    */
-  // TODO didn't we already to this with bind()?
+  struct sockaddr_in sin;
+  socklen_t sin_len = sizeof(sin);
+  if (getsockname(sd, (struct sockaddr *) &sin, &sin_len) == -1) {
+    fprintf(stderr, "Failed to getsockname");
+    exit(1);
+  }
+
+  self.sin_port = sin.sin_port;
 
   /* Find out the FQDN of the current host and store it in the local
      variable "sname".  gethostname() is usually sufficient. */
@@ -219,40 +232,20 @@ void
 imgdb_recvqry(int td, char *fname)
 {
   // Init buffer
-  size_t iqry_size = sizeof(iqry_t);
-  char buff[iqry_size];
-
-  // Init iquery_t writers
+  size_t buff_size = sizeof(iqry_t);
   iqry_t iqry;
-  char * iqry_ptr = (char *) &iqry;
-  int iqry_remaining_bytes = iqry_size;
+  memset((char *) &iqry, '\0', buff_size);
+  int bytes_read = recv(td, (char *) &iqry, buff_size, 0);
 
-  int num_read_bytes;
-  do {
-    // Read bytes from wire
-    num_read_bytes = recv(td, buff, iqry_size, 0);
+  // Fail due to bad network read
+  if (bytes_read == -1) {
+    fprintf(stderr, "Failed due to bad network read in imgdb_recvqry");
+    exit(1);
+  }
 
-    // Check for failed read
-    if (num_read_bytes == -1) {
-      fprintf(stderr, "Failed while reading iqry_t");
-      exit(1);
-    }
-
-    // Check buffer overflow
-    if (iqry_remaining_bytes  - num_read_bytes < 0) {
-      fprintf(stderr, "Server sent too many bytes for iqry_t packet");
-      exit(1);
-    }
-
-    // Accumulate data
-    memcpy(iqry_ptr, buff, num_read_bytes);
-    iqry_ptr += num_read_bytes; 
-    iqry_remaining_bytes -= num_read_bytes;
-  } while (num_read_bytes > 0);
-
-  // Copy image file name if valid version number 
+  // Process packet if valid version number
   if (iqry.iq_vers == NETIMG_VERS) {
-    memcpy(fname, iqry.iq_name, NETIMG_MAXFNAME);
+    memcpy(fname, iqry.iq_name, NETIMG_MAXFNAME); 
   }
 }
 
@@ -281,19 +274,19 @@ imgdb_sendimg(int td, imsg_t *imsg, LTGA *image, long img_size)
   /* Task 2: YOUR CODE HERE
    * Send the imsg packet to client connected to socket td.
    */
-  const char * imsg_write_ptr = (char *) imsg;
-  size_t remaining_imsg_bytes = sizeof(imsg);
-  while (remaining_imsg_bytes) {
-    // Send imsg_t to client
-    int write_len = send(td, imsg_write_ptr, remaining_imsg_bytes, 0);
+  size_t imsg_size = sizeof(imsg_t);
+  int bytes_sent = send(td, (char *) imsg, imsg_size, 0);
 
-    // Fail due to error during imsg_t write
-    if (write_len == -1)  {
-      fprintf(stderr, "Failed while writing imsg_t");
-      exit(1);
-    }
-
-    remaining_imsg_bytes -= write_len;
+  // Fail due to bad imsg send
+  if (bytes_sent == -1) {
+    fprintf(stderr, "Encountered network error while sending imsg to client");
+    exit(1);
+  }
+  
+  // Fail because couldn't send entire imsg packet
+  if ((size_t) bytes_sent != imsg_size) {
+    fprintf(stderr, "Failed to send entire imsg packet");
+    exit(1);
   }
 
   if (image) {
@@ -301,7 +294,7 @@ imgdb_sendimg(int td, imsg_t *imsg, LTGA *image, long img_size)
     segsize = segsize < NETIMG_MSS ? NETIMG_MSS : segsize; /* but don't let segment be too small*/
 
     ip = (char *) image->GetPixels();    /* ip points to the start of byte buffer holding image */
-    
+   
     for (left = img_size; left; left -= bytes) {  // "bytes" contains how many bytes was sent
       // at the last iteration.
 
@@ -309,13 +302,21 @@ imgdb_sendimg(int td, imsg_t *imsg, LTGA *image, long img_size)
        * Send one segment of data of size segsize at each iteration.
        * The last segment may be smaller than segsize
        */
-      bytes = send(td, (char *) image, segsize, 0);
+      bytes = send(
+          td, 
+          ip, 
+          (segsize < left)
+              ? segsize
+              : left,
+          0);
 
       // Fail due to bad write
       if (bytes == -1) {
         fprintf(stderr, "Failed while writing imsg_t");
         exit(1);
       }
+
+      ip += bytes;
 
       fprintf(stderr, "imgdb_send: size %d, sent %d\n", (int) left, bytes);
       usleep(NETIMG_USLEEP);
